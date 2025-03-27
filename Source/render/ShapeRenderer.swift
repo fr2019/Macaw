@@ -177,33 +177,38 @@ class ShapeRenderer: NodeRenderer {
     drawGradient(gradient, ctx: ctx, opacity: opacity)
   }
 
-  fileprivate func drawPattern(_ pattern: Pattern, ctx: CGContext?, opacity: Double) {
-    guard let ctx = ctx else { return }
+fileprivate func drawPattern(_ pattern: Pattern, ctx: CGContext?, opacity: Double) {
+  guard let ctx = ctx else { return }
 
-    ctx.saveGState() // Save state before clipping
-
-    var patternNode = pattern.content
-    if !pattern.userSpace, let node = BoundsUtils.createNodeFromRespectiveCoords(respectiveNode: pattern.content, absoluteLocus: shape.form) {
-      patternNode = node
-    }
-    let renderer = RenderUtils.createNodeRenderer(patternNode, view: view)
-
-    var patternBounds = pattern.bounds
-    if !pattern.userSpace {
-      let boundsTranform = BoundsUtils.transformForLocusInRespectiveCoords(respectiveLocus: pattern.bounds, absoluteLocus: shape.form)
-      patternBounds = pattern.bounds.applying(boundsTranform)
-    }
-    guard let tileCGImage = renderer.renderToImage(bounds: patternBounds, inset: 0)?.cgImage else {
-      ctx.restoreGState() // Restore state if we can't get the image
-      return
-    }
-
-    ctx.clip()
-    ctx.draw(tileCGImage, in: patternBounds.toCG(), byTiling: true)
-
-    // Note: we don't restore state here as it will be restored by the calling method
-    // The caller must restore the graphics state to ensure stroke can be rendered
+  ctx.saveGState()
+  defer {
+    ctx.restoreGState() // always restore, success or failure
   }
+
+  var patternNode = pattern.content
+  if !pattern.userSpace, let node = BoundsUtils.createNodeFromRespectiveCoords(respectiveNode: pattern.content, absoluteLocus: shape.form) {
+      patternNode = node
+  }
+  let renderer = RenderUtils.createNodeRenderer(patternNode, view: view)
+
+  var patternBounds = pattern.bounds
+  if !pattern.userSpace {
+      let boundsTranform = BoundsUtils.transformForLocusInRespectiveCoords(
+          respectiveLocus: pattern.bounds,
+          absoluteLocus: shape.form
+      )
+      patternBounds = pattern.bounds.applying(boundsTranform)
+  }
+
+  guard let tileCGImage = renderer.renderToImage(bounds: patternBounds, inset: 0)?.cgImage else {
+      return
+  }
+
+  // Now we are clipped only in this saved state
+  ctx.clip()
+  ctx.draw(tileCGImage, in: patternBounds.toCG(), byTiling: true)
+}
+
 
   fileprivate func drawGradient(_ gradient: Gradient, ctx: CGContext?, opacity: Double) {
     ctx!.saveGState()
