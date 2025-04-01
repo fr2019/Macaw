@@ -73,7 +73,7 @@ class ShapeRenderer: NodeRenderer {
             }
         }
 
-        ctx.beginPath() // Clear path for next hit testing
+        ctx.beginPath()
         return .none
     }
 
@@ -99,11 +99,11 @@ class ShapeRenderer: NodeRenderer {
             return
         }
 
-        // Handle regular fill and stroke with potential multi-color striping
+        // Render base fill (including stripes) and stroke
         if let fill = fill {
             ctx.saveGState()
-            setFill(fill, ctx: ctx, opacity: opacity, multiColors: shape.multiPermitColors) // Updated to handle striping
-            if fill is Gradient && !(stroke?.fill is Gradient) {
+            setFill(fill, ctx: ctx, opacity: opacity)
+            if fill is Gradient || fill is MultiColorFill, !(stroke?.fill is Gradient) {
                 ctx.drawPath(using: fillRule == .nonzero ? .fill : .eoFill)
             } else if stroke != nil {
                 drawWithStroke(stroke!, ctx: ctx, opacity: opacity, shouldStrokePath: shouldStrokePath, mode: fillRule == .nonzero ? .fillStroke : .eoFillStroke)
@@ -116,7 +116,7 @@ class ShapeRenderer: NodeRenderer {
             return
         }
 
-        // Overlay star pattern if applicable
+        // Overlay star pattern if specified
         if let starPattern = shape.starPattern, shape.usePattern {
             ctx.saveGState()
             ctx.clip()
@@ -125,7 +125,7 @@ class ShapeRenderer: NodeRenderer {
         }
     }
 
-    fileprivate func setFill(_ fill: Fill?, ctx: CGContext?, opacity: Double, multiColors: [StatesUSA: [ColorAssets]]? = nil) {
+    fileprivate func setFill(_ fill: Fill?, ctx: CGContext?, opacity: Double) {
         guard let fill = fill, let ctx = ctx else { return }
 
         if let fillColor = fill as? Color {
@@ -133,10 +133,10 @@ class ShapeRenderer: NodeRenderer {
             ctx.setFillColor(color.toCG())
         } else if let gradient = fill as? Gradient {
             drawGradient(gradient, ctx: ctx, opacity: opacity)
+        } else if let multiColorFill = fill as? MultiColorFill {
+            drawMultiColorStripes(multiColorFill, ctx: ctx, opacity: opacity)
         } else if let pattern = fill as? Pattern {
             drawPattern(pattern, ctx: ctx, opacity: opacity)
-        } else if multiColors != nil && !multiColors!.isEmpty {
-            drawMultiColorStripes(multiColors: multiColors!, ctx: ctx, opacity: opacity)
         } else {
             print("Unsupported fill: \(fill)")
         }
@@ -242,27 +242,27 @@ class ShapeRenderer: NodeRenderer {
         ctx.restoreGState()
     }
 
-    // New method to draw stripes from multiPermitColors
-    fileprivate func drawMultiColorStripes(multiColors: [StatesUSA: [ColorAssets]], ctx: CGContext, opacity: Double) {
-        guard !multiColors.isEmpty else { return }
+    fileprivate func drawMultiColorStripes(_ fill: MultiColorFill, ctx: CGContext, opacity: Double) {
         ctx.saveGState()
         defer { ctx.restoreGState() }
 
         let bounds = ctx.boundingBoxOfPath
-        let stripeWidth = bounds.width / CGFloat(multiColors.values.first!.count)
+        let stripeCount = fill.colors.count
+        let stripeWidth = bounds.width / CGFloat(stripeCount)
         var colors: [CGColor] = []
         var locations: [CGFloat] = []
 
-        let colorArray = multiColors.values.first! // Assume all states have the same color set for simplicity
-        for (index, colorAsset) in colorArray.enumerated() {
-            let color = RenderUtils.applyOpacity(Color(val: colorAsset.rawValue), opacity: opacity)
-            colors.append(color.toCG())
-            locations.append(CGFloat(index) / CGFloat(colorArray.count))
+        for (index, color) in fill.colors.enumerated() {
+            let cgColor = RenderUtils.applyOpacity(color, opacity: opacity).toCG()
+            colors.append(cgColor)
+            locations.append(CGFloat(index) / CGFloat(stripeCount))
         }
 
         let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: locations)!
         ctx.clip()
-        ctx.drawLinearGradient(gradient, start: CGPoint(x: bounds.minX, y: bounds.midY), end: CGPoint(x: bounds.maxX, y: bounds.midY), options: [])
+        let start = CGPoint(x: bounds.minX, y: bounds.midY)
+        let end = CGPoint(x: bounds.maxX, y: bounds.midY)
+        ctx.drawLinearGradient(gradient, start: start, end: end, options: [])
     }
 }
 
