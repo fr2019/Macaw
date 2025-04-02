@@ -1,10 +1,3 @@
-//
-//  CompositePattern.swift
-//  MapUsaSwift
-//
-//  Created by Francisco Riordan on 01.04.2025.
-//
-
 import Foundation
 import Macaw
 

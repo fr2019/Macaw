@@ -87,41 +87,74 @@ class ShapeRenderer: NodeRenderer {
       shouldStrokePath = true
     }
 
-    // Handle pattern fill with stroke
+    // Save the current path for later use
+    guard let currentPath = ctx.path?.copy() else { return }
+
+    // Special handling for pattern fills with strokes
     if let patternFill = fill as? Pattern, let stroke = stroke {
+      // Draw pattern fill first
       ctx.saveGState()
-      guard let path = ctx.path else { return }
-      setFill(patternFill, ctx: ctx, opacity: opacity)
+      ctx.addPath(currentPath)
+      ctx.clip()
+      drawPattern(patternFill, ctx: ctx, opacity: opacity)
       ctx.restoreGState()
 
-      ctx.addPath(path)
+      // Then draw the stroke separately
+      ctx.saveGState()
+      ctx.addPath(currentPath)
       RenderUtils.setStrokeAttributes(stroke, ctx: ctx)
       colorStroke(stroke, ctx: ctx, opacity: opacity)
       ctx.strokePath()
+      ctx.restoreGState()
+      
+      // Apply overlay pattern if needed
+      drawOverlayPatternIfNeeded(ctx: ctx, currentPath: currentPath, opacity: opacity)
+      
       return
     }
-
-    // Save the current path for later use
-    guard let currentPath = ctx.path?.copy() else { return }
 
     // Base fill rendering
     if let fill = fill {
       ctx.saveGState()
+      ctx.addPath(currentPath)
       setFill(fill, ctx: ctx, opacity: opacity)
-      if fill is Gradient || fill is MultiColorFill, !(stroke?.fill is Gradient) {
+      
+      if fill is Gradient || fill is MultiColorFill {
         ctx.drawPath(using: fillRule == .nonzero ? .fill : .eoFill)
       } else if stroke != nil {
-        drawWithStroke(stroke!, ctx: ctx, opacity: opacity, shouldStrokePath: shouldStrokePath, mode: fillRule == .nonzero ? .fillStroke : .eoFillStroke)
+        RenderUtils.setStrokeAttributes(stroke!, ctx: ctx)
+        colorStroke(stroke!, ctx: ctx, opacity: opacity)
+        ctx.drawPath(using: fillRule == .nonzero ? .fillStroke : .eoFillStroke)
       } else {
         ctx.drawPath(using: fillRule == .nonzero ? .fill : .eoFill)
       }
       ctx.restoreGState()
-    } else if let stroke = stroke {
-      drawWithStroke(stroke, ctx: ctx, opacity: opacity, shouldStrokePath: shouldStrokePath, mode: .stroke)
+    }
+    
+    // Handle stroke separately for multicolor fills and gradients
+    if (fill is MultiColorFill || fill is Gradient) && stroke != nil {
+      ctx.saveGState()
+      ctx.addPath(currentPath)
+      RenderUtils.setStrokeAttributes(stroke!, ctx: ctx)
+      colorStroke(stroke!, ctx: ctx, opacity: opacity)
+      ctx.strokePath()
+      ctx.restoreGState()
+    } else if fill == nil && stroke != nil {
+      ctx.saveGState()
+      ctx.addPath(currentPath)
+      RenderUtils.setStrokeAttributes(stroke!, ctx: ctx)
+      colorStroke(stroke!, ctx: ctx, opacity: opacity)
+      ctx.strokePath()
+      ctx.restoreGState()
     }
 
-    // Overlay pattern if specified
-    if let overlayPattern = shape.overlayPattern, shape.useOverlayPattern {
+    // Draw overlay pattern if specified
+    drawOverlayPatternIfNeeded(ctx: ctx, currentPath: currentPath, opacity: opacity)
+  }
+  
+  // Helper method to draw overlay pattern
+  private func drawOverlayPatternIfNeeded(ctx: CGContext, currentPath: CGPath, opacity: Double) {
+    if shape.useOverlayPattern, let overlayPattern = shape.overlayPattern {
       ctx.saveGState()
       ctx.addPath(currentPath) // Re-apply the original path for clipping
       ctx.clip()
@@ -144,30 +177,6 @@ class ShapeRenderer: NodeRenderer {
       drawPattern(pattern, ctx: ctx, opacity: opacity)
     } else {
       print("Unsupported fill: \(fill)")
-    }
-  }
-
-  fileprivate func drawWithStroke(_ stroke: Stroke, ctx: CGContext?, opacity: Double, shouldStrokePath: Bool = false, path: CGPath? = nil, mode: CGPathDrawingMode) {
-    guard let ctx = ctx else { return }
-    if shouldStrokePath {
-      if let path = path {
-        ctx.addPath(path)
-      } else if let currentPath = ctx.path {
-        ctx.addPath(currentPath)
-      }
-    }
-
-    RenderUtils.setStrokeAttributes(stroke, ctx: ctx)
-
-    if stroke.fill is Gradient {
-      gradientStroke(stroke, ctx: ctx, opacity: opacity)
-    } else if stroke.fill is Color {
-      colorStroke(stroke, ctx: ctx, opacity: opacity)
-      if shouldStrokePath {
-        ctx.strokePath()
-      } else {
-        ctx.drawPath(using: mode)
-      }
     }
   }
 
