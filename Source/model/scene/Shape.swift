@@ -4,8 +4,17 @@ import UIKit
 import AppKit
 #endif
 
-open class Shape: Node {
+// Class for multiple colors in a fill (for striped patterns)
+open class MultiColorFill: Fill {
+    public let colors: [Color]
+    
+    public init(colors: [Color]) {
+        self.colors = colors
+    }
+}
 
+open class Shape: Node {
+    // Original properties
     public let formVar: AnimatableVariable<Locus>
     open var form: Locus {
         get { return formVar.value }
@@ -23,11 +32,40 @@ open class Shape: Node {
         get { return strokeVar.value }
         set(val) { strokeVar.value = val }
     }
+    
+    // New properties for pattern support
+    public let overlayPatternVar: AnimatableVariable<Pattern?>
+    open var overlayPattern: Pattern? {
+        get { return overlayPatternVar.value }
+        set(val) { overlayPatternVar.value = val }
+    }
+    
+    public let useOverlayPatternVar: AnimatableVariable<Bool>
+    open var useOverlayPattern: Bool {
+        get { return useOverlayPatternVar.value }
+        set(val) { useOverlayPatternVar.value = val }
+    }
 
-    public init(form: Locus, fill: Fill? = nil, stroke: Stroke? = nil, place: Transform = Transform.identity, opaque: Bool = true, opacity: Double = 1, clip: Locus? = nil, mask: Node? = nil, effect: Effect? = nil, visible: Bool = true, tag: [String] = []) {
+    public init(form: Locus, 
+                fill: Fill? = nil, 
+                stroke: Stroke? = nil,
+                overlayPattern: Pattern? = nil,
+                useOverlayPattern: Bool = false,
+                place: Transform = Transform.identity, 
+                opaque: Bool = true, 
+                opacity: Double = 1, 
+                clip: Locus? = nil, 
+                mask: Node? = nil, 
+                effect: Effect? = nil, 
+                visible: Bool = true, 
+                tag: [String] = []) {
+        
         self.formVar = AnimatableVariable<Locus>(form)
         self.fillVar = AnimatableVariable<Fill?>(fill)
         self.strokeVar = StrokeAnimatableVariable(stroke)
+        self.overlayPatternVar = AnimatableVariable<Pattern?>(overlayPattern)
+        self.useOverlayPatternVar = AnimatableVariable<Bool>(useOverlayPattern)
+        
         super.init(
             place: place,
             opaque: opaque,
@@ -42,6 +80,32 @@ open class Shape: Node {
         self.formVar.node = self
         self.fillVar.node = self
         self.strokeVar.node = self
+        self.overlayPatternVar.node = self
+        self.useOverlayPatternVar.node = self
+    }
+    
+    // Add a convenience method to set both base fill and pattern
+    open func setFillWithOverlay(baseFill: Fill, overlayPattern: Pattern) {
+        self.fill = baseFill
+        self.overlayPattern = overlayPattern
+        self.useOverlayPattern = true
+    }
+    
+    // Create multicolor fill with colors and optional star overlay
+    open func setMultiColorFill(colors: [Color], overlayPattern: Pattern? = nil) {
+        if colors.count > 1 {
+            self.fill = MultiColorFill(colors: colors)
+        } else if let color = colors.first {
+            self.fill = color
+        }
+        
+        if let pattern = overlayPattern {
+            self.overlayPattern = pattern
+            self.useOverlayPattern = true
+        } else {
+            self.overlayPattern = nil
+            self.useOverlayPattern = false
+        }
     }
 
     override open var bounds: Rect? {
