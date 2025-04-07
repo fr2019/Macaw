@@ -541,13 +541,20 @@ class RenderUtils {
     }
 
     internal class func setStrokeAttributes(_ stroke: Stroke, ctx: CGContext?) {
-        ctx!.setLineWidth(CGFloat(stroke.width))
-        ctx!.setLineJoin(stroke.join.toCG())
-        ctx!.setLineCap(stroke.cap.toCG())
-        ctx!.setMiterLimit(CGFloat(stroke.miterLimit))
-        if !stroke.dashes.isEmpty {
-            ctx?.setLineDash(phase: CGFloat(stroke.offset),
-                             lengths: stroke.dashes.map { CGFloat($0) })
+        guard let ctx = ctx else { return }
+
+        ctx.setLineWidth(CGFloat(stroke.width))
+        ctx.setLineCap(CGLineCap.from(stroke.cap))
+        ctx.setLineJoin(CGLineJoin.from(stroke.join))
+
+        // If the stroke has valid non-zero dashes, set them; otherwise, disable the dash
+        let validDashes = stroke.dashes.filter { $0 != 0 }
+        if !validDashes.isEmpty {
+            ctx.setLineDash(phase: CGFloat(stroke.offset),
+                            lengths: validDashes.map { CGFloat($0) })
+        } else {
+            // Use an empty array to disable the dash
+            ctx.setLineDash(phase: 0, lengths: [])
         }
     }
 
