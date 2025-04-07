@@ -544,16 +544,18 @@ class RenderUtils {
         guard let ctx = ctx else { return }
 
         ctx.setLineWidth(CGFloat(stroke.width))
-        ctx.setLineCap(CGLineCap.from(stroke.cap))
-        ctx.setLineJoin(CGLineJoin.from(stroke.join))
+        ctx.setLineJoin(stroke.join.toCG())   // e.g. .miter, .round, etc.
+        ctx.setLineCap(stroke.cap.toCG())     // e.g. .butt, .round, etc.
+        ctx.setMiterLimit(CGFloat(stroke.miterLimit))
 
-        // If the stroke has valid non-zero dashes, set them; otherwise, disable the dash
+        // Filter out zero dashes so we don't trigger the "invalid dash array" warning
         let validDashes = stroke.dashes.filter { $0 != 0 }
+
         if !validDashes.isEmpty {
             ctx.setLineDash(phase: CGFloat(stroke.offset),
                             lengths: validDashes.map { CGFloat($0) })
         } else {
-            // Use an empty array to disable the dash
+            // Use empty array to disable the dash properly
             ctx.setLineDash(phase: 0, lengths: [])
         }
     }
