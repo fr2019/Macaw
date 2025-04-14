@@ -7,10 +7,25 @@ import AppKit
 #endif
 
 open class SVGView: MacawView {
-
+    // Completion handler for SVG loading
+    public var onSVGLoaded: (() -> Void)?
+    
     @IBInspectable open var fileName: String? {
         didSet {
-            node = (try? SVGParser.parse(resource: fileName ?? "")) ?? Group()
+            do {
+                if let fileName = fileName, let parsedNode = try SVGParser.parse(resource: fileName) {
+                    node = parsedNode
+                    // Call the completion handler when SVG is successfully loaded
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onSVGLoaded?()
+                    }
+                } else {
+                    node = Group()
+                }
+            } catch {
+                node = Group()
+                print("Error loading SVG: \(error)")
+            }
         }
     }
 
