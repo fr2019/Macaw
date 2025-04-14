@@ -13,7 +13,8 @@ open class SVGView: MacawView {
     @IBInspectable open var fileName: String? {
         didSet {
             do {
-                if let fileName = fileName, let parsedNode = try SVGParser.parse(resource: fileName) {
+                if let fileName = fileName {
+                    let parsedNode = try SVGParser.parse(resource: fileName)
                     node = parsedNode
                     // Call the completion handler when SVG is successfully loaded
                     DispatchQueue.main.async { [weak self] in
@@ -50,5 +51,4 @@ open class SVGView: MacawView {
         super.initializeView()
         self.contentLayout = ContentLayout.of(contentMode: contentMode)
     }
-
 }
